@@ -1,6 +1,6 @@
 const awsIot = require('aws-iot-device-sdk');
 
-const ENVIRONMENT = require('./environment');
+const ENVIRONMENT = require('edison-environment');
 
 var env = new ENVIRONMENT(2, 3, 0, 5, 7);
 
