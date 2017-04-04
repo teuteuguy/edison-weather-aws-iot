@@ -70,7 +70,7 @@ setInterval(function() {
         thingState.humidity = humidity;
         refreshShadow();
     }
-}, 60);
+}, 60000);
 
 var measureLight = false;
 setInterval(function() {
@@ -97,7 +97,7 @@ setInterval(function() {
         }
     }
 
-}, 15);
+}, 15000);
 
 
 
