@@ -1,0 +1,12 @@
+{
+  "name": "edison-weather-aws-iot",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "https://teuteuguy@github.com/teuteuguy/edison-weather-aws-iot",
+  "author": "Tim <pub@lalatte.com>",
+  "license": "MIT",
+  "dependencies": {
+    "aws-iot-device-sdk": "^1.0.14",
+    "edison-environment": "^1.0.0"
+  }
+}
