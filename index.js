@@ -1,4 +1,5 @@
 const awsIot = require('aws-iot-device-sdk');
+const OS = require('os');
 
 const ENVIRONMENT = require('edison-environment');
 
@@ -20,29 +21,10 @@ var configIoT = {
 };
 
 var thingState = {
-    temperature: null,
-    humidity: null,
-    light: {
-        raw: null,
-        value: null
-    },
-    uv: {
-        volts: null,
-        intensity: null
-    },
-    text: {
-        line1: null,
-        line2: null,
-        color: {
-            r: null,
-            g: null,
-            b: null
-        }
-    }
+    sensorFrequency: 5
 };
 
-console.log('[SETUP] thingShadow state initialized with:');
-console.log(thingState);
+console.log('[SETUP] thingShadow state initialized with:', JSON.stringify(thingState));
 console.log('[SETUP] Initializing IoT thingShadow with config:');
 console.log(configIoT);
 
@@ -53,88 +35,100 @@ function refreshShadow(toUpdate) {
     console.log('[EVENT] refreshShadow(): Refhreshing the Shadow:');
     console.log(toUpdate);
 
-
     var clientTokenUpdate = thingShadow.update(config.iotThingName, {
         state: {
             reported: toUpdate
         }
     });
-    console.log('clientTokenUpdate:', clientTokenUpdate);
+
+    // console.log('[EVENT] refreshShadow(): clientTokenUpdate:', clientTokenUpdate);
     if (clientTokenUpdate === null) {
-        console.log('[EVENT] refreshShadow(): update shadow failed, operation still in progress');
+        console.log('[IOT EVENT] refreshShadow(): update shadow failed, operation still in progress:', clientTokenUpdate);
     }
 
 }
 
 function refreshLCD(text) {
 
-    if (text.line1 && text.line2 && text.color) {
-
+    if (text.color) {
         env.lcd.setColor(text.color.r, text.color.g, text.color.b); // blue: 53, 39, 249
+    }
 
+    if (text.line1) {
         env.lcd.setCursor(0, 0);
-        env.lcd.write(text.line1);  
+        env.lcd.write(text.line1);
+    }
+    if (text.line2) {
         env.lcd.setCursor(1, 0);
         env.lcd.write(text.line2);
-
     }
 
 }
 
-const TEMPERATURE_FREQ = 60;
-const LIGHT_FREQ = 30;
-
-
-setInterval(function() {
-    var temp = {
-        temperature: env.th02.getTemperature(),
-        humidity: env.th02.getHumidity()
-    };
-    console.log('[EVENT] Temperature:', temp.temperature, 'celcius');
-    console.log('[EVENT] Humidity:', temp.humidity, '%');
-    if (temp.temperature != thingState.temperature || temp.humidity != thingState.humidity) {
-        thingState.temperature = temp.temperature;
-        thingState.humidity = temp.humidity;
-        refreshShadow(temp);
-    }
-}, TEMPERATURE_FREQ * 1000);
-
 var measureLight = false;
 setInterval(function() {
 
-    measureLight = !measureLight;
+    console.log('[SENSORS EVENT] START');
 
-    if (measureLight) {
-        var temp = {
-            light: {
-                raw: env.light.raw_value(),
-                value: env.light.value()
+    var temp = {};
+    var refresh = false;
+    var refreshTemperature = false;
+    var refreshHumidity = false;
+    var refreshLight = false;
+    var refreshIP = false;
+
+    var ifaces = OS.networkInterfaces();
+
+    if (ifaces[config.interface]) {
+        ifaces[config.interface].forEach(function(iface) {
+            if (iface.family == 'IPv4') {
+                temp.ip = iface.address;
+                if (thingState.ip !== temp.ip) {
+                    refresh = refreshIP = true;
+                }
+                thingState.ip = temp.ip;
+                refreshLCD({
+                    line2: temp.ip
+                });
+                console.log('[SENSORS EVENT] IP:       ', temp.ip);
             }
-        };
-        console.log('[EVENT] Reading Light:', 'raw(' + temp.light.raw + ') ~= ' + temp.light.value + ' lux');
-        if (temp.light.raw != thingState.light.raw || temp.light.value != thingState.light.value) {
-            thingState.light.raw = temp.light.raw;
-            thingState.light.value = temp.light.value;
-            refreshShadow(temp);
-        }
-    } else {
-        var temp = {
-            uv: {
-                volts: env.uv.volts(),
-                intensity: env.uv.intensity()
-            }
-        };
-        console.log('[EVENT] Reading UV:', temp.uv.volts, 'V,', temp.uv.intensity, 'mW/m^2');
-        if (temp.uv.volts != thingState.uv.volts || temp.uv.intensity != thingState.uv.intensity) {
-            thingState.uv.volts = temp.uv.volts;
-            thingState.uv.intensity = temp.uv.intensity;
-            refreshShadow(temp);
-        }
+        });
     }
 
-}, LIGHT_FREQ * 1000);
+    var temperature = env.th02.getTemperature();
+    var humidity = env.th02.getHumidity();
 
+    if (temperature !== thingState.temperature) refresh = refreshTemperature = true;
+    if (humidity !== thingState.humidity) refresh = refreshHumidity = true;
 
+    thingState.temperature = temperature;
+    thingState.humidity = humidity;
+
+    console.log('[SENSORS EVENT] TEMPARURE:', temperature, refreshTemperature ? ' -' : '');
+    console.log('[SENSORS EVENT] HUMIDITY: ', humidity, refreshHumidity ? ' -' : '');
+
+    refreshLCD({
+        line1: 'T:' + (Math.floor(temperature * 10) / 10) + 'C, H:' + (Math.floor(humidity * 10) / 10)
+    });
+
+    var lightRaw = env.light.raw_value();
+    var ligthValue = env.light.value();
+
+    if (thingState.light === undefined || lightRaw !== thingState.light.raw) refresh = refreshLight = true;
+    if (thingState.light === undefined || ligthValue !== thingState.light.value) refresh = refreshLight = true;
+
+    thingState.light = {
+        raw: lightRaw,
+        value: ligthValue
+    };
+
+    console.log('[SENSORS EVENT] LIGHT:    ', 'raw(' + lightRaw + ') ~= ' + ligthValue + ' lux', refreshLight ? ' -' : '');
+
+    if (refresh) refreshShadow(thingState);
+
+    console.log('[SENSORS EVENT] END');
+
+}, thingState.sensorFrequency * 1000);
 
 
 var thingShadow = awsIot.thingShadow(configIoT);
@@ -147,8 +141,8 @@ thingShadow.on('connect', function() {
     }, function() {
         console.log('[IOT EVENT] thingShadow.register: registered');
         // thingShadow.subscribe('$aws/things/' + config.iotThingName + '/shadow/get/accepted');
-        // console.log('clientToken:', thingShadow.get(config.iotThingName));
-        refreshShadow(thingState);
+        // console.log('[IOT EVENT] thingShadow.register: clientToken:', thingShadow.get(config.iotThingName));
+        // refreshShadow(thingState);
     });
 });
 
@@ -172,7 +166,7 @@ thingShadow.on('status', function(thingName, status, clientToken, stateObject) {
     console.log('[IOT EVENT] thingShadow.on(status): thingName:', thingName);
     console.log('[IOT EVENT] thingShadow.on(status): status:', status);
     console.log('[IOT EVENT] thingShadow.on(status): clientToken:', clientToken);
-    console.log('[IOT EVENT] thingShadow.on(status): stateObject:', stateObject);
+    console.log('[IOT EVENT] thingShadow.on(status): stateObject:', JSON.stringify(stateObject));
 });
 
 thingShadow.on('message', function(topic, payload) {
@@ -180,14 +174,12 @@ thingShadow.on('message', function(topic, payload) {
 });
 thingShadow.on('delta', function(thingName, stateObject) {
     console.log('[IOT EVENT] thingShadow.on(delta): on', thingName, 'with', stateObject);
-    if (stateObject.state.text !== undefined) {
-        thingState.text = stateObject.state.text;
-        refreshLCD(thingState.text);
+    if (stateObject.state.sensorFrequency !== undefined) {
+        thingState.sensorFrequency = stateObject.state.sensorFrequency;
         refreshShadow({
-            text: thingState.text
+            sensorFrequency: thingState.sensorFrequency
         });
     }
-
 });
 thingShadow.on('timeout', function(thingName, clientToken) {
     console.log('[IOT EVENT] thingShadow.on(timeout): on', thingName, 'with token', clientToken);
