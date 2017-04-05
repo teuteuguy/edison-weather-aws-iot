@@ -23,11 +23,7 @@ var configIoT = {
 var thingState = {
     sensorFrequency: 5,
     lcdBacklight: false,
-    lcdColor: {
-        r: 0,
-        g: 0,
-        b: 255
-    }
+    lcdColor: [ 255, 255, 255]
 };
 
 console.log('[SETUP] thingShadow state initialized with:', JSON.stringify(thingState));
@@ -57,7 +53,7 @@ function refreshShadow(toUpdate) {
 function refreshLCD(text) {
 
     if (text.color) {
-        env.lcd.setColor(text.color.r, text.color.g, text.color.b); // blue: 53, 39, 249
+        env.lcd.setColor(text.color[0], text.color[1], text.color[2]); // blue: 53, 39, 249
     }
 
     if (text.line1) {
@@ -192,6 +188,12 @@ thingShadow.on('delta', function(thingName, stateObject) {
         thingState.lcdBacklight = stateObject.state.lcdBacklight;
         refreshShadow({
             lcdBacklight: thingState.lcdBacklight
+        });
+    }
+    if (stateObject.state.lcdColor !== undefined) {
+        thingState.lcdColor = stateObject.state.lcdColor;
+        refreshShadow({
+            lcdColor: thingState.lcdColor
         });
     }
 });
