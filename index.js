@@ -21,7 +21,13 @@ var configIoT = {
 };
 
 var thingState = {
-    sensorFrequency: 5
+    sensorFrequency: 5,
+    lcdBacklight: false,
+    lcdColor: {
+        r: 0,
+        g: 0,
+        b: 255
+    }
 };
 
 console.log('[SETUP] thingShadow state initialized with:', JSON.stringify(thingState));
@@ -63,6 +69,8 @@ function refreshLCD(text) {
         env.lcd.write(text.line2);
     }
 
+    if (thingState.lcdBacklight) env.lcd.backlightOn();
+    else env.lcd.backlightOff();
 }
 
 var measureLight = false;
@@ -87,9 +95,6 @@ setInterval(function() {
                     refresh = refreshIP = true;
                 }
                 thingState.ip = temp.ip;
-                refreshLCD({
-                    line2: temp.ip
-                });
                 console.log('[SENSORS EVENT] IP:       ', temp.ip);
             }
         });
@@ -107,8 +112,11 @@ setInterval(function() {
     console.log('[SENSORS EVENT] TEMPARURE:', temperature, refreshTemperature ? ' -' : '');
     console.log('[SENSORS EVENT] HUMIDITY: ', humidity, refreshHumidity ? ' -' : '');
 
+    env.lcd.clear();
     refreshLCD({
-        line1: 'T:' + (Math.floor(temperature * 10) / 10) + 'C, H:' + (Math.floor(humidity * 10) / 10)
+        line1: 'T:' + (Math.floor(temperature * 10) / 10) + 'C, H:' + (Math.floor(humidity * 10) / 10),
+        line2: temp.ip,
+        color: thingState.lcdColor
     });
 
     var lightRaw = env.light.raw_value();
@@ -178,6 +186,12 @@ thingShadow.on('delta', function(thingName, stateObject) {
         thingState.sensorFrequency = stateObject.state.sensorFrequency;
         refreshShadow({
             sensorFrequency: thingState.sensorFrequency
+        });
+    }
+    if (stateObject.state.lcdBacklight !== undefined) {
+        thingState.lcdBacklight = stateObject.state.lcdBacklight;
+        refreshShadow({
+            lcdBacklight: thingState.lcdBacklight
         });
     }
 });
