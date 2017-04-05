@@ -1,0 +1,15 @@
+[Unit]
+Description=Run Weather station at boot
+After=network-online.target
+
+[Service]
+Restart=on-failure
+RestartSec=10s
+Environment="NODE_PATH=/usr/bin/node"
+Environment="HOME=/home/root"
+WorkingDirectory=/home/root/edison-weather-aws-iot
+ExecStartPre=/bin/sleep 1
+ExecStart=/usr/bin/node /home/root/edison-weather-aws-iot/index.js
+
+[Install]
+WantedBy=multi-user.target
